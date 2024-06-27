@@ -21,7 +21,6 @@ from vllm.model_executor.layers.quantization.base_config import (
     QuantizationConfig)
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     VocabParallelEmbedding)
-from vllm.utils import FlexibleArgumentParser
 
 tensorizer_error_msg = None
 
@@ -178,7 +177,8 @@ class TensorizerArgs:
                 self.deserializer_params['encryption'] = decryption_params
 
     @staticmethod
-    def add_cli_args(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
+    def add_cli_args(
+            parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         """Tensorizer CLI arguments"""
 
         # Tensorizer options arg group

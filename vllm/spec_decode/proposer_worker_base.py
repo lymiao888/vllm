@@ -3,10 +3,10 @@ from typing import List, Optional, Tuple
 
 from vllm.sequence import ExecuteModelRequest, SamplerOutput
 from vllm.spec_decode.interfaces import SpeculativeProposer
-from vllm.worker.worker_base import LoraNotSupportedWorkerBase
+from vllm.worker.worker_base import WorkerBase
 
 
-class ProposerWorkerBase(LoraNotSupportedWorkerBase, SpeculativeProposer):
+class ProposerWorkerBase(WorkerBase, SpeculativeProposer):
     """Interface for proposer workers"""
 
     @abstractmethod

@@ -111,7 +111,7 @@ class NaiveBlockAllocator(BlockAllocator):
         """
         source_blocks = get_all_blocks_recursively(last_block)
 
-        forked_blocks: List[Block] = []
+        forked_blocks = []
         prev_block = None
         for block in source_blocks:
 

@@ -90,8 +90,8 @@ class BlocksparseFlashAttentionBackend(AttentionBackend):
         return BlocksparseFlashAttentionImpl
 
     @staticmethod
-    def get_metadata_cls() -> Type["AttentionMetadata"]:
-        return BlocksparseFlashAttentionMetadata
+    def make_metadata(*args, **kwargs) -> "BlocksparseFlashAttentionMetadata":
+        return BlocksparseFlashAttentionMetadata(*args, **kwargs)
 
     @staticmethod
     def get_kv_cache_shape(

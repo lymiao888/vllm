@@ -1,5 +1,4 @@
 from typing import List, Optional
-from typing import Sequence as GenericSequence
 
 import torch
 
@@ -121,7 +120,7 @@ class PackedLoRALayerWeights(LoRALayerWeights):
 
     @classmethod
     def pack(
-        cls, loras: GenericSequence[Optional["LoRALayerWeights"]]
+            cls, loras: List[Optional["LoRALayerWeights"]]
     ) -> "PackedLoRALayerWeights":
         """Pack a list of LoRAs into a single LoRA.
 

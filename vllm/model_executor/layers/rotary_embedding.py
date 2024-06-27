@@ -221,29 +221,6 @@ class RotaryEmbedding(CustomOp):
                                  self.cos_sin_cache, self.is_neox_style)
         return query, key
 
-    def forward_xpu(
-        self,
-        positions: torch.Tensor,
-        query: torch.Tensor,
-        key: torch.Tensor,
-        offsets: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        from vllm._ipex_ops import ipex_ops as ops
-
-        self.cos_sin_cache = self.cos_sin_cache.to(positions.device,
-                                                   dtype=query.dtype)
-        # ops.rotary_embedding()/batched_rotary_embedding()
-        # are in-place operations that update the query and key tensors.
-        if offsets is not None:
-            ops.batched_rotary_embedding(positions, query, key, self.head_size,
-                                         self.cos_sin_cache,
-                                         self.is_neox_style, self.rotary_dim,
-                                         offsets)
-        else:
-            ops.rotary_embedding(positions, query, key, self.head_size,
-                                 self.cos_sin_cache, self.is_neox_style)
-        return query, key
-
     def forward_tpu(
         self,
         positions: torch.Tensor,
@@ -490,7 +467,7 @@ class YaRNScalingRotaryEmbedding(RotaryEmbedding):
         return cache
 
 
-class Phi3LongRoPEScaledRotaryEmbedding(nn.Module):
+class Phi3SuScaledRotaryEmbedding(nn.Module):
     """Phi3 family of models scaled rotary embedding.
 
     Based on the original RotaryEmbedding implementation.
@@ -507,19 +484,18 @@ class Phi3LongRoPEScaledRotaryEmbedding(nn.Module):
         dtype: torch.dtype,
         short_factor: List[float],
         long_factor: List[float],
-        short_mscale: float = 1.0,
-        long_mscale: float = 1.0,
+        short_mscale: float = 1.1,
+        long_mscale: float = 1.225,
     ):
         super().__init__()
 
         if rotary_dim != head_size:
             raise ValueError(
-                f"`Phi3LongRoPEScaledRotaryEmbedding` does not support \
-                    rotary_dim != head_size ({rotary_dim}!={head_size}).")
+                f"`Phi3SuScaledRotaryEmbedding` does not support rotary_dim != \
+                    head_size ({rotary_dim}!={head_size}).")
         if is_neox_style is False:
             raise ValueError(
-                "`Phi3LongRoPEScaledRotaryEmbedding` only supports neox_style."
-            )
+                "`Phi3SuScaledRotaryEmbedding` only supports neox_style.")
 
         self.head_size = head_size
         self.max_position_embeddings = max_position_embeddings
@@ -529,16 +505,6 @@ class Phi3LongRoPEScaledRotaryEmbedding(nn.Module):
         self.long_factor = long_factor
         self.short_mscale = short_mscale
         self.long_mscale = long_mscale
-
-        scale = (self.max_position_embeddings /
-                 self.original_max_position_embeddings)
-
-        if scale <= 1.0:
-            self.scaling_factor = 1.0
-        else:
-            self.scaling_factor = math.sqrt(
-                1 + math.log(scale) /
-                math.log(self.original_max_position_embeddings))
 
         short_cache = self._compute_cos_sin_cache(
             original_max_position_embeddings, short_factor, short_mscale)
@@ -575,8 +541,8 @@ class Phi3LongRoPEScaledRotaryEmbedding(nn.Module):
         inv_freq = self._compute_inv_freq(rescale_factors)
         t = torch.arange(max_position_embeddings, dtype=torch.float)
         freqs = torch.einsum("i,j -> ij", t, inv_freq)
-        cos = freqs.cos() * mscale * self.scaling_factor
-        sin = freqs.sin() * mscale * self.scaling_factor
+        cos = freqs.cos() * mscale
+        sin = freqs.sin() * mscale
         cache = torch.cat((cos, sin), dim=-1)
         return cache
 
@@ -642,9 +608,7 @@ def get_rope(
                                      is_neox_style, dtype)
     else:
         scaling_type = rope_scaling["type"]
-        # The correct one should be "longrope" but keep "su" here
-        # for backward compatible
-        if scaling_type != "su" and scaling_type != "longrope":
+        if scaling_type != "su":
             scaling_factor = rope_scaling["factor"]
         if scaling_type == "linear":
             rotary_emb = LinearScalingRotaryEmbedding(head_size, rotary_dim,
@@ -669,9 +633,7 @@ def get_rope(
                                                     base, is_neox_style,
                                                     scaling_factor, dtype,
                                                     **extra_kwargs)
-        # The correct one should be "longrope" but keep "su" here
-        # for backward compatible
-        elif scaling_type == "su" or scaling_type == "longrope":
+        elif scaling_type == "su":
             short_factor = rope_scaling["short_factor"]
             long_factor = rope_scaling["long_factor"]
             original_max_position = rope_scaling[
@@ -681,7 +643,7 @@ def get_rope(
                 for k, v in rope_scaling.items()
                 if k in ("short_mscale", "long_mscale")
             }
-            rotary_emb = Phi3LongRoPEScaledRotaryEmbedding(
+            rotary_emb = Phi3SuScaledRotaryEmbedding(
                 head_size, rotary_dim, max_position, original_max_position,
                 base, is_neox_style, dtype, short_factor, long_factor,
                 **extra_kwargs)
